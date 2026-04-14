@@ -1,7 +1,10 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Shield, Search, Brain, History, Activity, MessageSquare, Zap, FileText, Users, TrendingDown, CheckCircle } from 'lucide-react';
 
-export function Landing({ onNavigate }: { onNavigate: (tab: string) => void }) {
+export function Landing() {
+  const navigate = useNavigate();
+  
   return (
     <div className="min-h-screen bg-[#131313] text-[#e5e2e1] font-body selection:bg-primary-container selection:text-white relative">
       {/* TopNavBar */}
@@ -11,13 +14,11 @@ export function Landing({ onNavigate }: { onNavigate: (tab: string) => void }) {
             ClawSentinel
           </div>
           <div className="hidden md:flex items-center space-x-8 font-headline font-bold tracking-tight">
-            <button className="text-[#0066FF] font-bold border-b-2 border-[#0066FF] pb-1">Product</button>
-            <button className="text-[#8E8E8E] hover:text-white transition-colors">Screens</button>
-            <button className="text-[#8E8E8E] hover:text-white transition-colors">Docs</button>
-            <button className="text-[#8E8E8E] hover:text-white transition-colors">GitHub</button>
+            <Link to="/how-it-works" className="text-[#8E8E8E] hover:text-white transition-colors">How it Works</Link>
+            <a href="https://github.com" target="_blank" rel="noreferrer" className="text-[#8E8E8E] hover:text-white transition-colors">GitHub</a>
           </div>
           <button 
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/app')}
             className="bg-primary-container text-on-primary-container px-6 py-2.5 rounded-xl font-headline font-bold hover:opacity-80 transition-opacity active:scale-95 duration-100"
           >
             Get Started
@@ -45,7 +46,7 @@ export function Landing({ onNavigate }: { onNavigate: (tab: string) => void }) {
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <button 
-                onClick={() => onNavigate('dashboard')}
+                onClick={() => navigate('/app')}
                 className="bg-primary-container text-white px-8 py-4 rounded-xl font-headline font-bold text-lg hover:opacity-90 transition-all flex items-center group"
               >
                 Open Dashboard
@@ -184,7 +185,7 @@ export function Landing({ onNavigate }: { onNavigate: (tab: string) => void }) {
                 <div className="bg-surface p-6 rounded-xl border border-outline-variant/15 w-full">
                   <div className="text-xs font-bold text-tertiary mb-2 tracking-widest uppercase">STEP 02</div>
                   <h4 className="text-xl font-headline font-bold mb-2">Explain</h4>
-                  <p className="text-sm text-on-surface-variant">AI correlates mempool data with wallet behavior to provide context for every signal.</p>
+                  <p className="text-sm text-on-surface-variant">AI explains signal context using on-chain activity and market structure.</p>
                 </div>
               </div>
               
@@ -321,7 +322,7 @@ export function Landing({ onNavigate }: { onNavigate: (tab: string) => void }) {
         <section className="px-8 py-32 text-center max-w-4xl mx-auto relative z-10">
           <h2 className="text-5xl md:text-6xl font-headline font-bold mb-8 leading-tight">Turn market noise into clear action.</h2>
           <button 
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/app')}
             className="bg-primary-container text-white px-10 py-5 rounded-xl font-headline font-bold text-xl hover:scale-105 transition-transform shadow-lg shadow-primary-container/20"
           >
             Open Risk Dashboard

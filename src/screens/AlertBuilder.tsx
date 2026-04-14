@@ -83,9 +83,9 @@ export function AlertBuilder() {
               <div className="space-y-2">
                 <label className="text-xs font-medium text-on-surface-variant">Operator</label>
                 <select className="w-full bg-surface-container-lowest border border-outline-variant/15 rounded-lg px-3 py-2 text-sm text-white">
-                  <option>&gt; (Greater Than)</option>
-                  <option>&lt; (Less Than)</option>
-                  <option>increases by</option>
+                  <option>Greater Than</option>
+                  <option>Less Than</option>
+                  <option>Increases By</option>
                 </select>
               </div>
               <div className="space-y-2">

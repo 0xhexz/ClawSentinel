@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   BarChart2, 
@@ -13,38 +14,44 @@ import {
 
 interface AppShellProps {
   children: React.ReactNode;
-  activeTab: string;
-  onNavigate: (tab: string) => void;
-  contextualAction?: React.ReactNode;
 }
 
-export function AppShell({ children, activeTab, onNavigate, contextualAction }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'deepdive', label: 'Deep Dive', icon: BarChart2 },
-    { id: 'alerts', label: 'Alerts', icon: BellRing },
-    { id: 'replay', label: 'Replay', icon: History },
-    { id: 'watchlist', label: 'Watchlist', icon: Eye },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { path: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/app/deep-dive', label: 'Deep Dive', icon: BarChart2 },
+    { path: '/app/alerts', label: 'Alerts', icon: BellRing },
+    { path: '/app/replay', label: 'Replay', icon: History },
+    { path: '/app/watchlist', label: 'Watchlist', icon: Eye },
+    { path: '/app/settings', label: 'Settings', icon: Settings },
   ];
+
+  const contextualAction = location.pathname === '/app/dashboard' ? (
+    <button className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-primary-container/10">
+      Create Alert
+    </button>
+  ) : undefined;
 
   return (
     <div className="flex min-h-screen bg-surface text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-full flex flex-col py-6 w-64 border-r border-[#424656]/15 bg-[#0E0E0E] z-50">
-        <div className="px-6 mb-8 cursor-pointer" onClick={() => onNavigate('landing')}>
+        <div className="px-6 mb-8 cursor-pointer" onClick={() => navigate('/')}>
           <h1 className="text-xl font-bold text-[#0066FF] font-headline tracking-tight uppercase">ClawSentinel</h1>
           <p className="text-[10px] text-outline font-bold tracking-widest uppercase opacity-60">On-Chain Risk Intelligence</p>
         </div>
         
         <nav className="flex-1 px-3 space-y-1">
           {navItems.map((item) => {
-            const isActive = activeTab === item.id;
+            const isActive = location.pathname === item.path;
             const Icon = item.icon;
             return (
               <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
+                key={item.path}
+                onClick={() => navigate(item.path)}
                 className={`w-full flex items-center gap-3 px-4 py-3 transition-all rounded-lg group ${
                   isActive 
                     ? 'text-[#0066FF] bg-[#201F1F]/50 border-r-2 border-[#0066FF]' 
@@ -98,7 +105,7 @@ export function AppShell({ children, activeTab, onNavigate, contextualAction }: 
           <div className="flex items-center gap-4">
             <div className="flex items-center pr-4 border-r border-outline-variant/20 gap-4">
               <button className="text-outline hover:text-white transition-colors"><Bell size={20} /></button>
-              <button onClick={() => onNavigate('settings')} className="text-outline hover:text-white transition-colors"><Settings size={20} /></button>
+              <button onClick={() => navigate('/app/settings')} className="text-outline hover:text-white transition-colors"><Settings size={20} /></button>
             </div>
             {contextualAction}
           </div>

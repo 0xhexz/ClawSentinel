@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Landing } from './screens/Landing';
 import { Dashboard } from './screens/Dashboard';
@@ -15,47 +16,20 @@ import { Architecture } from './screens/Architecture';
 import { Settings } from './screens/Settings';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('landing');
-
-  if (activeTab === 'landing') {
-    return <Landing onNavigate={setActiveTab} />;
-  }
-
-  const renderScreen = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'deepdive':
-        return <DeepDive />;
-      case 'alerts':
-        return <AlertBuilder />;
-      case 'replay':
-        return <Replay />;
-      case 'watchlist':
-        return <Watchlist />;
-      case 'architecture':
-        return <Architecture />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
-    }
-  };
-
   return (
-    <AppShell 
-      activeTab={activeTab} 
-      onNavigate={setActiveTab}
-      contextualAction={
-        activeTab === 'dashboard' ? (
-          <button className="px-4 py-2 bg-primary-container text-on-primary-container rounded-lg text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-primary-container/10">
-            Create Alert
-          </button>
-        ) : undefined
-      }
-    >
-      {renderScreen()}
-    </AppShell>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/how-it-works" element={<Architecture />} />
+        <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/app/dashboard" element={<AppShell><Dashboard /></AppShell>} />
+        <Route path="/app/deep-dive" element={<AppShell><DeepDive /></AppShell>} />
+        <Route path="/app/alerts" element={<AppShell><AlertBuilder /></AppShell>} />
+        <Route path="/app/replay" element={<AppShell><Replay /></AppShell>} />
+        <Route path="/app/watchlist" element={<AppShell><Watchlist /></AppShell>} />
+        <Route path="/app/settings" element={<AppShell><Settings /></AppShell>} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
