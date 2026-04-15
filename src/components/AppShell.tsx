@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -9,8 +9,9 @@ import {
   Settings,
   Search,
   Bell,
-  Network
+  Brain
 } from 'lucide-react';
+import { AIChat } from './AIChat';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const navItems = [
     { path: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -104,6 +106,12 @@ export function AppShell({ children }: AppShellProps) {
           
           <div className="flex items-center gap-4">
             <div className="flex items-center pr-4 border-r border-outline-variant/20 gap-4">
+              <button 
+                onClick={() => setIsChatOpen(!isChatOpen)}
+                className={`transition-colors ${isChatOpen ? 'text-[#0066FF]' : 'text-outline hover:text-white'}`}
+              >
+                <Brain size={20} />
+              </button>
               <button className="text-outline hover:text-white transition-colors"><Bell size={20} /></button>
               <button onClick={() => navigate('/app/settings')} className="text-outline hover:text-white transition-colors"><Settings size={20} /></button>
             </div>
@@ -112,9 +120,12 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 pt-24 px-8 pb-12">
+        <main className={`flex-1 pt-24 px-8 pb-12 transition-all duration-300 ${isChatOpen ? 'mr-96' : ''}`}>
           {children}
         </main>
+
+        {/* AI Chat Slide-over */}
+        <AIChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       </div>
     </div>
   );

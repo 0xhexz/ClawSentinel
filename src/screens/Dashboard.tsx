@@ -1,38 +1,116 @@
-import React from 'react';
-import { Shield, Brain, Grid, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Brain, Grid, ShieldAlert, Loader2 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { api, TokenData, ChartDataPoint } from '../services/api';
+import { formatCurrency, formatPercent } from '../lib/utils';
+import { format } from 'date-fns';
 
 export function Dashboard() {
+  const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState<'1H' | '1D' | '1W'>('1D');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Fetch trending tokens to pick the top one for the dashboard
+        const trending = await api.getTrendingTokens();
+        if (trending.length > 0) {
+          const topToken = trending[0];
+          setTokenData(topToken);
+          
+          // Fetch chart data
+          const chart = await api.getChartData(topToken.address, timeframe);
+          setChartData(chart);
+          
+          // Generate AI Summary
+          try {
+            const aiRes = await api.getAiRiskSummary({
+              token: topToken.symbol,
+              priceChange: topToken.priceChange24h,
+              volume: topToken.volume24h,
+              liquidity: topToken.liquidity
+            });
+            setAiSummary(aiRes.summary);
+          } catch (e) {
+            setAiSummary('AI analysis temporarily unavailable.');
+          }
+        }
+      } catch (err) {
+        setError('Failed to load dashboard data. Please check your connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadDashboardData();
+  }, [timeframe]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full w-full min-h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-primary-container animate-spin" />
+          <p className="text-on-surface-variant text-sm font-mono tracking-widest uppercase">Syncing On-Chain Data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !tokenData) {
+    return (
+      <div className="flex items-center justify-center h-full w-full min-h-[60vh]">
+        <div className="bg-surface-container p-8 rounded-xl border border-error/20 text-center max-w-md">
+          <ShieldAlert className="w-12 h-12 text-error mx-auto mb-4" />
+          <h3 className="text-white font-headline font-bold mb-2">Data Unavailable</h3>
+          <p className="text-on-surface-variant text-sm">{error || 'No token data found.'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isPositive = tokenData.priceChange24h >= 0;
+  const priceColor = isPositive ? 'text-tertiary' : 'text-error';
+
+  // Find anomaly for chart
+  const anomalyPoint = chartData.find(d => d.isAnomaly);
+
   return (
     <div className="space-y-8 max-w-screen-2xl mx-auto w-full">
       {/* Section 1: Top Metric Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Asset</p>
-          <p className="text-lg font-headline font-bold text-white">ETH</p>
+          <p className="text-lg font-headline font-bold text-white">{tokenData.symbol}</p>
         </div>
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Price</p>
-          <p className="text-lg font-headline font-bold text-white">$2,405.12</p>
+          <p className="text-lg font-headline font-bold text-white">{formatCurrency(tokenData.priceUsd)}</p>
         </div>
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">24h Change</p>
-          <p className="text-lg font-headline font-bold text-tertiary">+2.4%</p>
+          <p className={`text-lg font-headline font-bold ${priceColor}`}>{formatPercent(tokenData.priceChange24h)}</p>
         </div>
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Liquidity</p>
-          <p className="text-lg font-headline font-bold text-white">$1.2B</p>
+          <p className="text-lg font-headline font-bold text-white">{formatCurrency(tokenData.liquidity)}</p>
         </div>
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Market Cap</p>
-          <p className="text-lg font-headline font-bold text-white">$280B</p>
+          <p className="text-lg font-headline font-bold text-white">{formatCurrency(tokenData.fdv)}</p>
         </div>
         <div className="bg-surface-container p-4 rounded-xl border border-outline-variant/10">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Trend Rank</p>
-          <p className="text-lg font-headline font-bold text-white">#4</p>
+          <p className="text-lg font-headline font-bold text-white">#1</p>
         </div>
         <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/5 flex flex-col justify-center items-end">
           <p className="text-[8px] text-on-surface-variant uppercase tracking-widest">Live Sync</p>
-          <p className="text-[10px] font-mono text-[#8E8E8E]">14:22:05 UTC</p>
+          <p className="text-[10px] font-mono text-[#8E8E8E]">{format(new Date(), 'HH:mm:ss')} UTC</p>
         </div>
       </div>
 
@@ -51,7 +129,7 @@ export function Dashboard() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-on-surface-variant text-xs mb-1 italic">Last evaluated 4m ago</p>
+                <p className="text-on-surface-variant text-xs mb-1 italic">Last evaluated just now</p>
                 <Shield className="text-primary-container ml-auto" size={36} />
               </div>
             </div>
@@ -83,7 +161,7 @@ export function Dashboard() {
         </div>
 
         {/* Right Column: AI Intelligence Rail */}
-        <div className="lg:col-span-4 bg-surface-container p-6 rounded-xl border border-outline-variant/15 space-y-4">
+        <div className="lg:col-span-4 bg-surface-container p-6 rounded-xl border border-outline-variant/15 space-y-4 flex flex-col">
           <div className="flex items-center justify-between">
             <h3 className="text-white font-headline font-bold flex items-center gap-2">
               <Brain className="text-[#0066FF]" size={20} />
@@ -94,15 +172,11 @@ export function Dashboard() {
               <span className="text-xs font-bold text-tertiary">98.2%</span>
             </div>
           </div>
-          <div>
-            <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-2">What Changed</p>
-            <p className="text-sm text-white leading-relaxed">Whale wallet <span className="text-[#0066FF]">0x4f...a2</span> moved 12k ETH to Coinbase. Sell pressure spiked by 18% in the last 15 minutes.</p>
+          <div className="flex-1">
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-2">Live Assessment</p>
+            <p className="text-sm text-white leading-relaxed">{aiSummary || 'Analyzing on-chain signals...'}</p>
           </div>
-          <div className="bg-surface-container-low p-4 rounded-lg border-l-4 border-primary-container">
-            <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Why This Matters</p>
-            <p className="text-sm text-on-surface italic leading-relaxed">"Large exchange inflows usually precede localized liquidity exits, suggesting a short-term volatility window."</p>
-          </div>
-          <div className="pt-4 border-t border-outline-variant/10">
+          <div className="pt-4 border-t border-outline-variant/10 mt-auto">
             <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-3">Suggested Action</p>
             <button className="w-full bg-white text-black py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-on-surface-variant transition-colors">
               <ShieldAlert size={16} /> Review Hedge Recommendation
@@ -116,43 +190,93 @@ export function Dashboard() {
         <div className="flex justify-between items-end mb-8">
           <div>
             <h2 className="text-xl font-headline font-bold text-white">Intelligence Trend</h2>
-            <p className="text-sm text-on-surface-variant">Macro-risk variance vs Asset Performance (7D)</p>
+            <p className="text-sm text-on-surface-variant">Macro-risk variance vs Asset Performance ({timeframe})</p>
           </div>
           <div className="flex gap-2">
-            <button className="px-3 py-1 bg-surface-container-high rounded text-xs text-[#8E8E8E] hover:text-white transition-colors">1H</button>
-            <button className="px-3 py-1 bg-[#201F1F] text-[#0066FF] border border-[#0066FF]/30 rounded text-xs font-bold">1D</button>
-            <button className="px-3 py-1 bg-surface-container-high rounded text-xs text-[#8E8E8E] hover:text-white transition-colors">1W</button>
+            {(['1H', '1D', '1W'] as const).map((t) => (
+              <button 
+                key={t}
+                onClick={() => setTimeframe(t)}
+                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                  timeframe === t 
+                    ? 'bg-[#201F1F] text-[#0066FF] border border-[#0066FF]/30' 
+                    : 'bg-surface-container-high text-[#8E8E8E] hover:text-white border border-transparent'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         </div>
         <div className="h-64 w-full relative">
-          {/* Placeholder for Chart Visual */}
-          <div className="absolute inset-0 flex flex-col justify-between">
-            <div className="h-px w-full bg-outline-variant/10"></div>
-            <div className="h-px w-full bg-outline-variant/10"></div>
-            <div className="h-px w-full bg-outline-variant/10"></div>
-            <div className="h-px w-full bg-outline-variant/10"></div>
-          </div>
-          <div className="absolute bottom-0 left-0 w-full h-full flex items-end">
-            <svg className="w-full h-full overflow-visible" preserveAspectRatio="none">
-              <path d="M0 180 Q 150 120, 300 160 T 600 80 T 900 140 T 1200 60" fill="none" stroke="#0066FF" strokeWidth="3"></path>
-              <path d="M0 180 Q 150 120, 300 160 T 600 80 T 900 140 T 1200 60 L 1200 256 L 0 256 Z" fill="url(#chartGradient)" opacity="0.1"></path>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
               <defs>
-                <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#0066FF"></stop>
-                  <stop offset="100%" stopColor="#0066FF" stopOpacity="0"></stop>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0066FF" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#0066FF" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              {/* Anomaly Marker */}
-              <circle className="animate-pulse" cx="600" cy="80" fill="#FFB4AB" r="6"></circle>
-              <text fill="#FFB4AB" fontFamily="Space Grotesk" fontSize="10" x="615" y="75">ANOMALY DETECTED</text>
-            </svg>
-          </div>
+              <XAxis 
+                dataKey="time" 
+                hide 
+              />
+              <YAxis 
+                domain={['auto', 'auto']} 
+                hide 
+              />
+              <Tooltip 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-surface-container-high border border-outline-variant/20 p-3 rounded-lg shadow-xl">
+                        <p className="text-xs text-on-surface-variant mb-1">
+                          {format(new Date(payload[0].payload.time), 'MMM d, HH:mm')}
+                        </p>
+                        <p className="text-sm font-bold text-white">
+                          {formatCurrency(payload[0].value as number)}
+                        </p>
+                        {payload[0].payload.isAnomaly && (
+                          <p className="text-[10px] text-error font-bold mt-1 uppercase tracking-wider">
+                            Anomaly Detected
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="value" 
+                stroke="#0066FF" 
+                strokeWidth={2}
+                fillOpacity={1} 
+                fill="url(#chartGradient)" 
+                activeDot={{ r: 6, fill: '#0066FF', stroke: '#fff', strokeWidth: 2 }}
+              />
+              {anomalyPoint && (
+                <ReferenceDot 
+                  x={anomalyPoint.time} 
+                  y={anomalyPoint.value} 
+                  r={6} 
+                  fill="#FFB4AB" 
+                  stroke="none" 
+                  className="animate-pulse"
+                />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
         <div className="flex justify-between mt-4">
-          <span className="text-[10px] text-[#424656]">Oct 12</span>
-          <span className="text-[10px] text-[#424656]">Oct 14</span>
-          <span className="text-[10px] text-[#424656]">Oct 16</span>
-          <span className="text-[10px] text-[#424656]">Oct 18</span>
+          {chartData.length > 0 && (
+            <>
+              <span className="text-[10px] text-[#424656]">{format(new Date(chartData[0].time), 'MMM d, HH:mm')}</span>
+              <span className="text-[10px] text-[#424656]">{format(new Date(chartData[Math.floor(chartData.length/2)].time), 'MMM d, HH:mm')}</span>
+              <span className="text-[10px] text-[#424656]">{format(new Date(chartData[chartData.length-1].time), 'MMM d, HH:mm')}</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -207,7 +331,7 @@ export function Dashboard() {
             <div className="h-full bg-tertiary" style={{ width: '42%' }}></div>
             <div className="h-full bg-error" style={{ width: '58%' }}></div>
           </div>
-          <p className="text-[10px] text-[#8E8E8E] mt-4 text-center">Net delta: -16.4 ETH/min</p>
+          <p className="text-[10px] text-[#8E8E8E] mt-4 text-center">Net delta: -16.4 {tokenData.symbol}/min</p>
         </div>
 
         {/* Anomaly Events */}
@@ -234,3 +358,4 @@ export function Dashboard() {
     </div>
   );
 }
+

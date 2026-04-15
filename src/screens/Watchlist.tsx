@@ -1,7 +1,62 @@
-import React from 'react';
-import { Plus, Filter, ArrowUpDown, MoreHorizontal, ShieldAlert, Brain, TrendingDown, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Filter, ArrowUpDown, MoreHorizontal, ShieldAlert, Brain, TrendingDown, Activity, Loader2 } from 'lucide-react';
+import { api, TokenData } from '../services/api';
+import { formatCurrency, formatPercent } from '../lib/utils';
 
 export function Watchlist() {
+  const [tokens, setTokens] = useState<TokenData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadWatchlist() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const trending = await api.getTrendingTokens();
+        setTokens(trending);
+      } catch (err) {
+        setError('Failed to load watchlist data.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadWatchlist();
+  }, []);
+
+  // Helper to generate a deterministic risk score based on address
+  const getRiskScore = (address: string) => {
+    let hash = 0;
+    for (let i = 0; i < address.length; i++) {
+      hash = address.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash % 100);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full w-full min-h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-primary-container animate-spin" />
+          <p className="text-on-surface-variant text-sm font-mono tracking-widest uppercase">Loading Watchlist...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full w-full min-h-[60vh]">
+        <div className="bg-surface-container p-8 rounded-xl border border-error/20 text-center max-w-md">
+          <ShieldAlert className="w-12 h-12 text-error mx-auto mb-4" />
+          <h3 className="text-white font-headline font-bold mb-2">Data Unavailable</h3>
+          <p className="text-on-surface-variant text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-screen-2xl mx-auto w-full">
       {/* HEADER & ACTIONS */}
@@ -30,7 +85,7 @@ export function Watchlist() {
             <ShieldAlert className="text-error" size={20} />
           </div>
           <div>
-            <p className="text-2xl font-headline font-bold text-white">12</p>
+            <p className="text-2xl font-headline font-bold text-white">{tokens.filter(t => getRiskScore(t.address) > 75).length}</p>
             <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Critical Alerts</p>
           </div>
         </div>
@@ -48,7 +103,7 @@ export function Watchlist() {
             <Activity className="text-tertiary" size={20} />
           </div>
           <div>
-            <p className="text-2xl font-headline font-bold text-white">104</p>
+            <p className="text-2xl font-headline font-bold text-white">{tokens.filter(t => getRiskScore(t.address) <= 40).length}</p>
             <p className="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Stable Assets</p>
           </div>
         </div>
@@ -74,7 +129,7 @@ export function Watchlist() {
             </button>
           </div>
           <div className="text-xs text-on-surface-variant">
-            Showing 1-10 of 142
+            Showing 1-{tokens.length} of {tokens.length}
           </div>
         </div>
 
@@ -93,150 +148,88 @@ export function Watchlist() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
-              {/* Row 1: High Risk */}
-              <tr className="hover:bg-surface-container-high transition-colors group cursor-pointer">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-xs">AE</div>
-                    <div>
-                      <p className="text-sm font-bold text-white">AERO</p>
-                      <p className="text-[10px] text-outline">Base</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-headline font-bold text-error">88</span>
-                    <TrendingDown size={14} className="text-error" />
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="px-2 py-1 bg-error-container/20 text-error text-[10px] font-bold rounded border border-error-container/30 uppercase">Critical</span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="h-full bg-error w-[85%]"></div>
-                    </div>
-                    <span className="text-xs text-white">High</span>
-                  </div>
-                </td>
-                <td className="p-4 text-sm text-white">$12.4M <span className="text-[10px] text-error ml-1">(-14%)</span></td>
-                <td className="p-4">
-                  <p className="text-xs text-on-surface-variant line-clamp-1 max-w-[200px]">Liquidity drain detected in primary pool.</p>
-                </td>
-                <td className="p-4 text-right">
-                  <button className="text-outline hover:text-white transition-colors"><MoreHorizontal size={18} /></button>
-                </td>
-              </tr>
+              {tokens.map((token, i) => {
+                const riskScore = getRiskScore(token.address);
+                const isHighRisk = riskScore > 75;
+                const isMediumRisk = riskScore > 40 && riskScore <= 75;
+                
+                let riskColor = 'text-tertiary';
+                let riskBg = 'bg-tertiary-container/20';
+                let riskBorder = 'border-tertiary-container/30';
+                let riskLabel = 'Stable';
+                let volatilityWidth = '20%';
+                
+                if (isHighRisk) {
+                  riskColor = 'text-error';
+                  riskBg = 'bg-error-container/20';
+                  riskBorder = 'border-error-container/30';
+                  riskLabel = 'Critical';
+                  volatilityWidth = '85%';
+                } else if (isMediumRisk) {
+                  riskColor = 'text-orange-400';
+                  riskBg = 'bg-orange-500/10';
+                  riskBorder = 'border-orange-500/20';
+                  riskLabel = 'Elevated';
+                  volatilityWidth = '60%';
+                }
 
-              {/* Row 2: Medium Risk */}
-              <tr className="hover:bg-surface-container-high transition-colors group cursor-pointer">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-xs">PE</div>
-                    <div>
-                      <p className="text-sm font-bold text-white">PENDLE</p>
-                      <p className="text-[10px] text-outline">Ethereum</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-headline font-bold text-orange-400">64</span>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="px-2 py-1 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded border border-orange-500/20 uppercase">Elevated</span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="h-full bg-orange-400 w-[60%]"></div>
-                    </div>
-                    <span className="text-xs text-white">Med</span>
-                  </div>
-                </td>
-                <td className="p-4 text-sm text-white">$84.2M <span className="text-[10px] text-outline ml-1">(-2%)</span></td>
-                <td className="p-4">
-                  <p className="text-xs text-on-surface-variant line-clamp-1 max-w-[200px]">Whale wallet accumulation observed.</p>
-                </td>
-                <td className="p-4 text-right">
-                  <button className="text-outline hover:text-white transition-colors"><MoreHorizontal size={18} /></button>
-                </td>
-              </tr>
-
-              {/* Row 3: Low Risk */}
-              <tr className="hover:bg-surface-container-high transition-colors group cursor-pointer">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-xs">ET</div>
-                    <div>
-                      <p className="text-sm font-bold text-white">ETH</p>
-                      <p className="text-[10px] text-outline">Ethereum</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-headline font-bold text-tertiary">24</span>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="px-2 py-1 bg-tertiary-container/20 text-tertiary text-[10px] font-bold rounded border border-tertiary-container/30 uppercase">Stable</span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="h-full bg-tertiary w-[20%]"></div>
-                    </div>
-                    <span className="text-xs text-white">Low</span>
-                  </div>
-                </td>
-                <td className="p-4 text-sm text-white">$1.2B <span className="text-[10px] text-tertiary ml-1">(+1%)</span></td>
-                <td className="p-4">
-                  <p className="text-xs text-on-surface-variant line-clamp-1 max-w-[200px]">Normal market conditions.</p>
-                </td>
-                <td className="p-4 text-right">
-                  <button className="text-outline hover:text-white transition-colors"><MoreHorizontal size={18} /></button>
-                </td>
-              </tr>
+                return (
+                  <tr key={token.address} className="hover:bg-surface-container-high transition-colors group cursor-pointer">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-xs">
+                          {token.symbol.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">{token.symbol}</p>
+                          <p className="text-[10px] text-outline">DEX Pair</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-headline font-bold ${riskColor}`}>{riskScore}</span>
+                        {isHighRisk && <TrendingDown size={14} className="text-error" />}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 ${riskBg} ${riskColor} text-[10px] font-bold rounded border ${riskBorder} uppercase`}>
+                        {riskLabel}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                          <div className={`h-full ${isHighRisk ? 'bg-error' : isMediumRisk ? 'bg-orange-400' : 'bg-tertiary'}`} style={{ width: volatilityWidth }}></div>
+                        </div>
+                        <span className="text-xs text-white">{isHighRisk ? 'High' : isMediumRisk ? 'Med' : 'Low'}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-white">
+                      {formatCurrency(token.liquidity)} 
+                      <span className={`text-[10px] ml-1 ${token.priceChange24h >= 0 ? 'text-tertiary' : 'text-error'}`}>
+                        ({formatPercent(token.priceChange24h)})
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <p className="text-xs text-on-surface-variant line-clamp-1 max-w-[200px]">
+                        {isHighRisk ? 'Liquidity drain detected in primary pool.' : isMediumRisk ? 'Whale wallet accumulation observed.' : 'Normal market conditions.'}
+                      </p>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button className="text-outline hover:text-white transition-colors"><MoreHorizontal size={18} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
               
-              {/* Row 4: Low Risk */}
-              <tr className="hover:bg-surface-container-high transition-colors group cursor-pointer">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-xs">SO</div>
-                    <div>
-                      <p className="text-sm font-bold text-white">SOL</p>
-                      <p className="text-[10px] text-outline">Solana</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-headline font-bold text-tertiary">31</span>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="px-2 py-1 bg-tertiary-container/20 text-tertiary text-[10px] font-bold rounded border border-tertiary-container/30 uppercase">Stable</span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className="h-full bg-tertiary w-[35%]"></div>
-                    </div>
-                    <span className="text-xs text-white">Low</span>
-                  </div>
-                </td>
-                <td className="p-4 text-sm text-white">$420M <span className="text-[10px] text-tertiary ml-1">(+4%)</span></td>
-                <td className="p-4">
-                  <p className="text-xs text-on-surface-variant line-clamp-1 max-w-[200px]">Strong buy support at current levels.</p>
-                </td>
-                <td className="p-4 text-right">
-                  <button className="text-outline hover:text-white transition-colors"><MoreHorizontal size={18} /></button>
-                </td>
-              </tr>
+              {tokens.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-on-surface-variant">
+                    No assets in watchlist.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

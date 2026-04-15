@@ -18,7 +18,7 @@ export function Landing() {
             <a href="https://github.com" target="_blank" rel="noreferrer" className="text-[#8E8E8E] hover:text-white transition-colors">GitHub</a>
           </div>
           <button 
-            onClick={() => navigate('/app')}
+            onClick={() => navigate('/access')}
             className="bg-primary-container text-on-primary-container px-6 py-2.5 rounded-xl font-headline font-bold hover:opacity-80 transition-opacity active:scale-95 duration-100"
           >
             Get Started
@@ -46,7 +46,7 @@ export function Landing() {
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <button 
-                onClick={() => navigate('/app')}
+                onClick={() => navigate('/access')}
                 className="bg-primary-container text-white px-8 py-4 rounded-xl font-headline font-bold text-lg hover:opacity-90 transition-all flex items-center group"
               >
                 Open Dashboard
@@ -322,7 +322,7 @@ export function Landing() {
         <section className="px-8 py-32 text-center max-w-4xl mx-auto relative z-10">
           <h2 className="text-5xl md:text-6xl font-headline font-bold mb-8 leading-tight">Turn market noise into clear action.</h2>
           <button 
-            onClick={() => navigate('/app')}
+            onClick={() => navigate('/access')}
             className="bg-primary-container text-white px-10 py-5 rounded-xl font-headline font-bold text-xl hover:scale-105 transition-transform shadow-lg shadow-primary-container/20"
           >
             Open Risk Dashboard

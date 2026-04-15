@@ -1,7 +1,39 @@
-import React from 'react';
-import { User, Bell, Shield, Key, Database, Webhook, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Bell, Shield, Key, Database, Webhook, Save, MessageCircle } from 'lucide-react';
 
 export function Settings() {
+  const [telegramStatus, setTelegramStatus] = useState({ connected: false, chatId: '' });
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/telegram/status')
+      .then(res => res.json())
+      .then(data => setTelegramStatus(data))
+      .catch(console.error);
+  }, []);
+
+  const handleConnectTelegram = () => {
+    // Replace with actual bot username if available in env, or hardcode for now
+    const botUsername = 'ClawSentinelBot'; // Ideally from env
+    window.open(`https://t.me/${botUsername}?start=clawsentinel`, '_blank');
+  };
+
+  const handleTestTelegram = async () => {
+    setIsTestingTelegram(true);
+    try {
+      const res = await fetch('/api/telegram/test', { method: 'POST' });
+      if (res.ok) {
+        alert('Test alert sent successfully!');
+      } else {
+        alert('Failed to send test alert. Make sure you have started the bot.');
+      }
+    } catch (e) {
+      alert('Error sending test alert.');
+    } finally {
+      setIsTestingTelegram(false);
+    }
+  };
+
   return (
     <div className="max-w-screen-xl mx-auto w-full space-y-8 pb-12">
       <div>
@@ -87,6 +119,47 @@ export function Settings() {
                     defaultValue="admin@clawsentinel.io"
                     className="w-full bg-surface-container-lowest border border-outline-variant/15 rounded-lg px-4 py-2.5 text-sm focus:border-primary/50 focus:ring-0 transition-all text-white"
                   />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Telegram Integration Section */}
+          <section className="bg-surface-container rounded-xl border border-outline-variant/10 overflow-hidden">
+            <div className="p-6 border-b border-outline-variant/10 bg-surface-container-high flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-headline font-bold text-white flex items-center gap-2">
+                  <MessageCircle size={20} className="text-[#0088cc]" />
+                  Telegram Alerts
+                </h3>
+                <p className="text-xs text-on-surface-variant mt-1">Receive critical risk alerts directly to your Telegram.</p>
+              </div>
+              <div className={`px-3 py-1 rounded-full text-xs font-bold ${telegramStatus.connected ? 'bg-tertiary/20 text-tertiary' : 'bg-surface-variant text-on-surface-variant'}`}>
+                {telegramStatus.connected ? 'CONNECTED' : 'DISCONNECTED'}
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">Bot Connection</p>
+                  <p className="text-xs text-on-surface-variant">Link your Telegram account to receive notifications.</p>
+                </div>
+                <div className="flex gap-3">
+                  {telegramStatus.connected && (
+                    <button 
+                      onClick={handleTestTelegram}
+                      disabled={isTestingTelegram}
+                      className="px-4 py-2 bg-surface-container-highest text-white rounded-lg text-sm font-medium hover:bg-surface-bright transition-colors border border-outline-variant/10 disabled:opacity-50"
+                    >
+                      {isTestingTelegram ? 'Sending...' : 'Test Alert'}
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleConnectTelegram}
+                    className="px-4 py-2 bg-[#0088cc] text-white rounded-lg text-sm font-medium hover:brightness-110 transition-colors shadow-lg shadow-[#0088cc]/20"
+                  >
+                    {telegramStatus.connected ? 'Reconnect Bot' : 'Connect Telegram'}
+                  </button>
                 </div>
               </div>
             </div>
