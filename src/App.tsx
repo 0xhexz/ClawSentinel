@@ -21,7 +21,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   useEffect(() => {
-    fetch('/api/auth/check')
+    fetch('/api/auth/check', { credentials: 'include' })
       .then(res => res.json())
       .then(data => setIsAuthenticated(data.authenticated))
       .catch(() => setIsAuthenticated(false));

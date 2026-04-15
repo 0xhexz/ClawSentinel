@@ -12,7 +12,7 @@ dotenv.config();
 
 const BLUESMINDS_BASE = process.env.BLUESMINDS_BASE || 'https://api.bluesminds.com/v1';
 const BLUESMINDS_API_KEY = process.env.BLUESMINDS_API_KEY || '';
-const APP_ACCESS_CODE = process.env.APP_ACCESS_CODE || 'ClawSentinel123!';
+const APP_ACCESS_CODE = process.env.APP_ACCESS_CODE;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-claw-key';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -109,6 +109,32 @@ async function startServer() {
   app.use(express.json());
   app.use(cookieParser());
 
+  console.log(`[DEBUG] Server Startup: APP_ACCESS_CODE defined: ${!!process.env.APP_ACCESS_CODE}, JWT_SECRET defined: ${!!process.env.JWT_SECRET}, NODE_ENV: ${process.env.NODE_ENV}`);
+
+  // Middleware to protect /app routes
+  app.use('/app', (req, res, next) => {
+    // Skip middleware for static assets
+    if (req.path.includes('.')) return next();
+
+    const token = req.cookies.auth_token;
+    console.log(`[DEBUG] Middleware: Path=${req.originalUrl}, Protocol=${req.protocol}, Forwarded-Proto=${req.headers['x-forwarded-proto']}, Cookie 'auth_token' exists: ${!!token}`);
+    
+    if (!token) {
+      console.log('[DEBUG] Middleware: No token, redirecting to /access');
+      return res.redirect('/access');
+    }
+
+    try {
+      jwt.verify(token, JWT_SECRET);
+      console.log('[DEBUG] Middleware: JWT verified successfully');
+      next();
+    } catch (e) {
+      console.log(`[DEBUG] Middleware: JWT verification failed (${e instanceof Error ? e.message : 'unknown'}), redirecting to /access`);
+      res.clearCookie('auth_token');
+      res.redirect('/access');
+    }
+  });
+
   initializeBluesMinds();
 
   // --- API ROUTES ---
@@ -119,9 +145,32 @@ async function startServer() {
   // --- AUTH ROUTES ---
   app.post('/api/auth/verify', (req, res) => {
     const { code } = req.body;
-    if (code === APP_ACCESS_CODE) {
+    
+    // Read directly from process.env to ensure we get the latest value without fallback
+    let envCode = process.env.APP_ACCESS_CODE;
+    
+    if (envCode) {
+      envCode = envCode.trim();
+      // Remove surrounding quotes if Vercel added them
+      if ((envCode.startsWith('"') && envCode.endsWith('"')) || (envCode.startsWith("'") && envCode.endsWith("'"))) {
+        envCode = envCode.slice(1, -1);
+      }
+    }
+
+    const submittedCode = typeof code === 'string' ? code.trim() : '';
+    const isMatched = !!(envCode && submittedCode === envCode);
+    
+    console.log(`[DEBUG] Auth Verify: Code matched: ${isMatched}`);
+
+    if (isMatched) {
       const token = jwt.sign({ authenticated: true }, JWT_SECRET, { expiresIn: '7d' });
-      res.cookie('auth_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+      res.cookie('auth_token', token, { 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: 'lax',
+        path: '/'
+      });
+      console.log('[DEBUG] Auth Verify: Cookie set successfully');
       res.json({ success: true });
     } else {
       res.status(401).json({ error: 'Invalid access code' });
@@ -130,11 +179,17 @@ async function startServer() {
 
   app.get('/api/auth/check', (req, res) => {
     const token = req.cookies.auth_token;
+    console.log(`[DEBUG] Auth Check: Raw Cookies: ${JSON.stringify(req.cookies)}`);
+    console.log(`[DEBUG] Auth Check: Cookie 'auth_token' exists: ${!!token}`);
+    
     if (!token) return res.json({ authenticated: false });
+    
     try {
       jwt.verify(token, JWT_SECRET);
+      console.log('[DEBUG] Auth Check: JWT verified successfully');
       res.json({ authenticated: true });
     } catch (e) {
+      console.log(`[DEBUG] Auth Check: JWT verification failed (${e instanceof Error ? e.message : 'unknown'})`);
       res.json({ authenticated: false });
     }
   });

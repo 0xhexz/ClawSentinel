@@ -17,7 +17,8 @@ export function Access() {
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ code }),
+        credentials: 'include'
       });
 
       if (res.ok) {
@@ -74,7 +75,6 @@ export function Access() {
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="•••••••••••••••"
                 className="w-full bg-surface-container-lowest border border-outline-variant/15 rounded-xl px-4 py-3 text-center tracking-widest focus:outline-none focus:border-[#0066FF]/50 focus:ring-1 focus:ring-[#0066FF]/50 transition-all text-white font-mono"
-                maxLength={15}
                 required
               />
               {error && (
