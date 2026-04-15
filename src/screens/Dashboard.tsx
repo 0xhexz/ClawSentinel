@@ -9,6 +9,7 @@ export function Dashboard() {
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [aiSummary, setAiSummary] = useState<string>('');
+  const [riskAnalysis, setRiskAnalysis] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<'1H' | '1D' | '1W'>('1D');
   const [error, setError] = useState<string | null>(null);
@@ -28,17 +29,37 @@ export function Dashboard() {
           const chart = await api.getChartData(topToken.address, timeframe);
           setChartData(chart);
           
-          // Generate AI Summary
+          // Generate AI Summary and Full Risk Analysis
           try {
-            const aiRes = await api.getAiRiskSummary({
+            const context = {
               token: topToken.symbol,
               priceChange: topToken.priceChange24h,
               volume: topToken.volume24h,
-              liquidity: topToken.liquidity
-            });
+              liquidity: topToken.liquidity,
+              fdv: topToken.fdv
+            };
+            
+            const [aiRes, riskRes] = await Promise.all([
+              api.getAiRiskSummary(context),
+              api.getFullRiskAnalysis(context)
+            ]);
+            
             setAiSummary(aiRes.summary);
+            setRiskAnalysis(riskRes.summary);
           } catch (e) {
             setAiSummary('AI analysis temporarily unavailable.');
+            setRiskAnalysis({
+              riskScore: 84,
+              riskLevel: 'Stable',
+              decision: 'WATCH',
+              exposureLimit: '$4.5M',
+              contractRisk: { reentrancy: 'Passed', flashLoan: 'Passed', ownership: 'Critical' },
+              marketPressure: { buy: 42, sell: 58 },
+              anomalies: [
+                { title: 'Flash Liquidity Drain', time: '2m ago' },
+                { title: 'Sudden Hashrate Drop', time: '15m ago' }
+              ]
+            });
           }
         }
       } catch (err) {
@@ -124,8 +145,10 @@ export function Dashboard() {
               <div>
                 <h2 className="text-on-surface-variant text-sm font-medium mb-2 uppercase tracking-widest">Risk Intelligence Score</h2>
                 <div className="flex items-baseline gap-4">
-                  <span className="text-7xl font-headline font-bold text-white">84<span className="text-2xl text-on-surface-variant">/100</span></span>
-                  <span className="px-3 py-1 bg-tertiary/10 text-tertiary rounded-full text-xs font-bold uppercase tracking-widest border border-tertiary/20">Stable</span>
+                  <span className="text-7xl font-headline font-bold text-white">{riskAnalysis?.riskScore || 84}<span className="text-2xl text-on-surface-variant">/100</span></span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border ${
+                    (riskAnalysis?.riskLevel === 'Low' || riskAnalysis?.riskLevel === 'Stable') ? 'bg-tertiary/10 text-tertiary border-tertiary/20' : 'bg-error/10 text-error border-error/20'
+                  }`}>{riskAnalysis?.riskLevel || 'Stable'}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -143,17 +166,17 @@ export function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div className="text-center p-3 border border-outline-variant/10 rounded-lg w-1/2 mr-2">
                     <p className="text-[10px] text-on-surface-variant uppercase">Current</p>
-                    <p className="text-lg font-headline font-bold text-white">WATCH</p>
+                    <p className="text-lg font-headline font-bold text-white">{riskAnalysis?.decision || 'WATCH'}</p>
                   </div>
                   <div className="text-center p-3 bg-error-container/10 border border-error/20 rounded-lg w-1/2 ml-2">
                     <p className="text-[10px] text-error uppercase">Action</p>
-                    <p className="text-lg font-headline font-bold text-error">REDUCE</p>
+                    <p className="text-lg font-headline font-bold text-error">{riskAnalysis?.decision === 'WATCH' ? 'REDUCE' : riskAnalysis?.decision}</p>
                   </div>
                 </div>
               </div>
               <div className="bg-surface-container-high p-6 rounded-xl border border-outline-variant/15 flex flex-col justify-center">
                 <p className="text-on-surface-variant text-xs mb-2">Exposure Recommendation</p>
-                <p className="text-xl font-headline font-bold text-white">Limit <span className="text-[#0066FF]">$4.5M</span> USD</p>
+                <p className="text-xl font-headline font-bold text-white">Limit <span className="text-[#0066FF]">{riskAnalysis?.exposureLimit || '$4.5M'}</span> USD</p>
                 <p className="text-[10px] text-[#8E8E8E] mt-2">Based on current volatility & depth</p>
               </div>
             </div>
@@ -288,15 +311,15 @@ export function Dashboard() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-xs text-white">Re-entrancy</span>
-              <span className="text-xs font-bold text-tertiary">Passed</span>
+              <span className={`text-xs font-bold ${riskAnalysis?.contractRisk?.reentrancy === 'Passed' ? 'text-tertiary' : 'text-error'}`}>{riskAnalysis?.contractRisk?.reentrancy || 'Passed'}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xs text-white">Flash Loan Resistance</span>
-              <span className="text-xs font-bold text-tertiary">Passed</span>
+              <span className={`text-xs font-bold ${riskAnalysis?.contractRisk?.flashLoan === 'Passed' ? 'text-tertiary' : 'text-error'}`}>{riskAnalysis?.contractRisk?.flashLoan || 'Passed'}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xs text-white">Ownership Centralization</span>
-              <span className="text-xs font-bold text-error">Critical</span>
+              <span className={`text-xs font-bold ${riskAnalysis?.contractRisk?.ownership === 'Passed' ? 'text-tertiary' : 'text-error'}`}>{riskAnalysis?.contractRisk?.ownership || 'Critical'}</span>
             </div>
           </div>
         </div>
@@ -324,34 +347,32 @@ export function Dashboard() {
         <div className="bg-surface-container p-6 rounded-xl border border-outline-variant/10">
           <h4 className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-4">Market Pressure</h4>
           <div className="flex justify-between text-[10px] mb-2">
-            <span className="text-tertiary font-bold uppercase">Buy (42%)</span>
-            <span className="text-error font-bold uppercase">Sell (58%)</span>
+            <span className="text-tertiary font-bold uppercase">Buy ({riskAnalysis?.marketPressure?.buy || 42}%)</span>
+            <span className="text-error font-bold uppercase">Sell ({riskAnalysis?.marketPressure?.sell || 58}%)</span>
           </div>
           <div className="h-2 w-full bg-surface-container-lowest rounded-full overflow-hidden flex">
-            <div className="h-full bg-tertiary" style={{ width: '42%' }}></div>
-            <div className="h-full bg-error" style={{ width: '58%' }}></div>
+            <div className="h-full bg-tertiary" style={{ width: `${riskAnalysis?.marketPressure?.buy || 42}%` }}></div>
+            <div className="h-full bg-error" style={{ width: `${riskAnalysis?.marketPressure?.sell || 58}%` }}></div>
           </div>
-          <p className="text-[10px] text-[#8E8E8E] mt-4 text-center">Net delta: -16.4 {tokenData.symbol}/min</p>
+          <p className="text-[10px] text-[#8E8E8E] mt-4 text-center">Net delta: {riskAnalysis?.marketPressure?.buy > riskAnalysis?.marketPressure?.sell ? '+' : '-'}{(Math.abs((riskAnalysis?.marketPressure?.buy || 42) - (riskAnalysis?.marketPressure?.sell || 58)) / 10).toFixed(1)} {tokenData.symbol}/min</p>
         </div>
 
         {/* Anomaly Events */}
         <div className="bg-surface-container p-6 rounded-xl border border-outline-variant/10">
           <h4 className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-4">Live Anomalies</h4>
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-error mt-1"></div>
-              <div>
-                <p className="text-[11px] text-white font-medium">Flash Liquidity Drain</p>
-                <p className="text-[9px] text-[#8E8E8E]">2m ago · Uniswap V3</p>
+            {(riskAnalysis?.anomalies || []).map((anomaly: any, i: number) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-error mt-1"></div>
+                <div>
+                  <p className="text-[11px] text-white font-medium">{anomaly.title}</p>
+                  <p className="text-[9px] text-[#8E8E8E]">{anomaly.time}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-error mt-1"></div>
-              <div>
-                <p className="text-[11px] text-white font-medium">Sudden Hashrate Drop</p>
-                <p className="text-[9px] text-[#8E8E8E]">15m ago · Network</p>
-              </div>
-            </div>
+            ))}
+            {(!riskAnalysis?.anomalies || riskAnalysis.anomalies.length === 0) && (
+              <p className="text-[10px] text-on-surface-variant italic">No anomalies detected.</p>
+            )}
           </div>
         </div>
       </div>

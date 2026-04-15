@@ -77,6 +77,16 @@ export const api = {
     return res.json();
   },
 
+  async getFullRiskAnalysis(context: any) {
+    const res = await fetch('/api/ai/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context, type: 'full_risk' }),
+    });
+    if (!res.ok) throw new Error('Failed to get Full Risk analysis');
+    return res.json();
+  },
+
   // Mocking historical chart data for the UI since DexScreener public API doesn't provide free klines
   async getChartData(address: string, timeframe: '1H' | '1D' | '1W'): Promise<ChartDataPoint[]> {
     // In a real app, this would call Ave API or Binance API for klines

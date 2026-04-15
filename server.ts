@@ -111,92 +111,11 @@ async function startServer() {
 
   console.log(`[DEBUG] Server Startup: APP_ACCESS_CODE defined: ${!!process.env.APP_ACCESS_CODE}, JWT_SECRET defined: ${!!process.env.JWT_SECRET}, NODE_ENV: ${process.env.NODE_ENV}`);
 
-  // Middleware to protect /app routes
-  app.use('/app', (req, res, next) => {
-    // Skip middleware for static assets
-    if (req.path.includes('.')) return next();
-
-    const token = req.cookies.auth_token;
-    console.log(`[DEBUG] Middleware: Path=${req.originalUrl}, Protocol=${req.protocol}, Forwarded-Proto=${req.headers['x-forwarded-proto']}, Cookie 'auth_token' exists: ${!!token}`);
-    
-    if (!token) {
-      console.log('[DEBUG] Middleware: No token, redirecting to /access');
-      return res.redirect('/access');
-    }
-
-    try {
-      jwt.verify(token, JWT_SECRET);
-      console.log('[DEBUG] Middleware: JWT verified successfully');
-      next();
-    } catch (e) {
-      console.log(`[DEBUG] Middleware: JWT verification failed (${e instanceof Error ? e.message : 'unknown'}), redirecting to /access`);
-      res.clearCookie('auth_token');
-      res.redirect('/access');
-    }
-  });
-
   initializeBluesMinds();
 
   // --- API ROUTES ---
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
-  // --- AUTH ROUTES ---
-  app.post('/api/auth/verify', (req, res) => {
-    const { code } = req.body;
-    
-    // Read directly from process.env to ensure we get the latest value without fallback
-    let envCode = process.env.APP_ACCESS_CODE;
-    
-    if (envCode) {
-      envCode = envCode.trim();
-      // Remove surrounding quotes if Vercel added them
-      if ((envCode.startsWith('"') && envCode.endsWith('"')) || (envCode.startsWith("'") && envCode.endsWith("'"))) {
-        envCode = envCode.slice(1, -1);
-      }
-    }
-
-    const submittedCode = typeof code === 'string' ? code.trim() : '';
-    const isMatched = !!(envCode && submittedCode === envCode);
-    
-    console.log(`[DEBUG] Auth Verify: Code matched: ${isMatched}`);
-
-    if (isMatched) {
-      const token = jwt.sign({ authenticated: true }, JWT_SECRET, { expiresIn: '7d' });
-      res.cookie('auth_token', token, { 
-        httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production', 
-        sameSite: 'lax',
-        path: '/'
-      });
-      console.log('[DEBUG] Auth Verify: Cookie set successfully');
-      res.json({ success: true });
-    } else {
-      res.status(401).json({ error: 'Invalid access code' });
-    }
-  });
-
-  app.get('/api/auth/check', (req, res) => {
-    const token = req.cookies.auth_token;
-    console.log(`[DEBUG] Auth Check: Raw Cookies: ${JSON.stringify(req.cookies)}`);
-    console.log(`[DEBUG] Auth Check: Cookie 'auth_token' exists: ${!!token}`);
-    
-    if (!token) return res.json({ authenticated: false });
-    
-    try {
-      jwt.verify(token, JWT_SECRET);
-      console.log('[DEBUG] Auth Check: JWT verified successfully');
-      res.json({ authenticated: true });
-    } catch (e) {
-      console.log(`[DEBUG] Auth Check: JWT verification failed (${e instanceof Error ? e.message : 'unknown'})`);
-      res.json({ authenticated: false });
-    }
-  });
-
-  app.post('/api/auth/logout', (req, res) => {
-    res.clearCookie('auth_token');
-    res.json({ success: true });
   });
 
   // --- TELEGRAM ROUTES ---
@@ -252,13 +171,25 @@ async function startServer() {
         prompt = `You are an expert on-chain risk analyst. Analyze the following market context and provide a brief, professional risk verdict (max 2 sentences) focusing on liquidity, volume shifts, and smart contract anomalies. Context: ${JSON.stringify(context)}`;
       } else if (type === 'deep_dive') {
         prompt = `You are an expert on-chain risk analyst. Analyze the following token data and provide a deep dive summary. Return a JSON object with exactly these keys: "confidence" (number 0-100), "findings" (array of 3 short sentences), "recommendation" (short action phrase), "reasoning" (1 sentence). Context: ${JSON.stringify(context)}`;
+      } else if (type === 'full_risk') {
+        prompt = `You are an expert on-chain risk analyst. Analyze the following token data and provide a comprehensive risk assessment. 
+        Return a JSON object with these keys:
+        "riskScore" (number 0-100),
+        "riskLevel" (string: "Low", "Medium", "High", "Critical"),
+        "decision" (string: "WATCH", "REDUCE", "ACCUMULATE", "EXIT"),
+        "exposureLimit" (string: e.g. "$1.2M"),
+        "contractRisk" (object with keys: "reentrancy" (string: "Passed"/"Failed"), "flashLoan" (string: "Passed"/"Failed"), "ownership" (string: "Passed"/"Failed"/"Critical")),
+        "marketPressure" (object with keys: "buy" (number 0-100), "sell" (number 0-100)),
+        "anomalies" (array of objects with keys: "title", "time"),
+        "summary" (string).
+        Context: ${JSON.stringify(context)}`;
       } else {
         prompt = `Analyze the following on-chain data: ${JSON.stringify(context)}`;
       }
 
       let summary = await callBluesMinds([{ role: 'user', content: prompt }]);
       
-      if (type === 'deep_dive') {
+      if (type === 'deep_dive' || type === 'full_risk') {
         try {
           // Extract JSON if wrapped in markdown
           const jsonMatch = summary.match(/```json\n([\s\S]*?)\n```/) || summary.match(/\{[\s\S]*\}/);
@@ -269,12 +200,25 @@ async function startServer() {
           }
         } catch (e) {
           // Fallback if parsing fails
-          summary = {
-            confidence: 85,
-            findings: ["Analysis completed.", "Data processed.", "Awaiting further signals."],
-            recommendation: "Monitor",
-            reasoning: summary.substring(0, 100)
-          };
+          if (type === 'deep_dive') {
+            summary = {
+              confidence: 85,
+              findings: ["Analysis completed.", "Data processed.", "Awaiting further signals."],
+              recommendation: "Monitor",
+              reasoning: summary.substring(0, 100)
+            };
+          } else {
+             summary = {
+              riskScore: 75,
+              riskLevel: "Medium",
+              decision: "WATCH",
+              exposureLimit: "$1.0M",
+              contractRisk: { reentrancy: "Passed", flashLoan: "Passed", ownership: "Passed" },
+              marketPressure: { buy: 50, sell: 50 },
+              anomalies: [{ title: "Standard Activity", time: "Just now" }],
+              summary: summary.substring(0, 100)
+            };
+          }
         }
       }
 

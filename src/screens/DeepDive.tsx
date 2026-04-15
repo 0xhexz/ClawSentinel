@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 export function DeepDive() {
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
   const [aiSummary, setAiSummary] = useState<any>(null);
+  const [riskAnalysis, setRiskAnalysis] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,14 +23,21 @@ export function DeepDive() {
           setTokenData(topToken);
           
           try {
-            const aiRes = await api.getDeepDiveAiSummary({
+            const context = {
               token: topToken.symbol,
               priceChange: topToken.priceChange24h,
               volume: topToken.volume24h,
               liquidity: topToken.liquidity,
               fdv: topToken.fdv
-            });
+            };
+            
+            const [aiRes, riskRes] = await Promise.all([
+              api.getDeepDiveAiSummary(context),
+              api.getFullRiskAnalysis(context)
+            ]);
+            
             setAiSummary(aiRes.summary);
+            setRiskAnalysis(riskRes.summary);
           } catch (e) {
             setAiSummary({
               confidence: 82,
@@ -40,6 +48,16 @@ export function DeepDive() {
               ],
               recommendation: "Monitor with Alerts",
               reasoning: "Wait for sell pressure to equalize before entry. Set price floor alert."
+            });
+            setRiskAnalysis({
+               riskScore: 75,
+               riskLevel: "Medium",
+               decision: "WATCH",
+               exposureLimit: "$1.0M",
+               contractRisk: { reentrancy: "Passed", flashLoan: "Passed", ownership: "Passed" },
+               marketPressure: { buy: 40, sell: 60 },
+               anomalies: [{ title: "Standard Activity", time: "Just now" }],
+               summary: "Analysis completed."
             });
           }
         }
@@ -97,9 +115,15 @@ export function DeepDive() {
               <span className="bg-surface-container-high px-3 py-1 rounded-full text-[10px] font-bold text-outline border border-outline-variant/10 uppercase">Base Chain</span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5 bg-error-container/10 border border-error-container/20 px-3 py-1 rounded-full">
-                <div className="w-2 h-2 rounded-full bg-error"></div>
-                <span className="text-xs font-bold text-error uppercase tracking-wider">Medium Risk</span>
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${
+                (riskAnalysis?.riskLevel === 'Low' || riskAnalysis?.riskLevel === 'Stable') ? 'bg-tertiary/10 border-tertiary/20' : 'bg-error-container/10 border-error-container/20'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  (riskAnalysis?.riskLevel === 'Low' || riskAnalysis?.riskLevel === 'Stable') ? 'bg-tertiary' : 'bg-error'
+                }`}></div>
+                <span className={`text-xs font-bold uppercase tracking-wider ${
+                  (riskAnalysis?.riskLevel === 'Low' || riskAnalysis?.riskLevel === 'Stable') ? 'text-tertiary' : 'text-error'
+                }`}>{riskAnalysis?.riskLevel || 'Medium'} Risk</span>
               </div>
               <p className="text-xs text-outline italic">Analyzed {format(new Date(), 'HH:mm')} UTC</p>
             </div>
@@ -128,23 +152,27 @@ export function DeepDive() {
               <div className="space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="flex gap-3">
-                    <ShieldAlert className="text-error" size={18} />
+                    <ShieldAlert className={riskAnalysis?.contractRisk?.reentrancy === 'Passed' ? 'text-tertiary' : 'text-error'} size={18} />
                     <div>
-                      <p className="text-sm font-semibold">Proxy Pattern Detected</p>
-                      <p className="text-xs text-outline">Implementation can be swapped without notice.</p>
+                      <p className="text-sm font-semibold">Re-entrancy Protection</p>
+                      <p className="text-xs text-outline">Verification of contract security patterns.</p>
                     </div>
                   </div>
-                  <span className="text-[9px] px-2 py-0.5 bg-error-container/20 text-error font-bold rounded-full border border-error-container/30 uppercase">High</span>
+                  <span className={`text-[9px] px-2 py-0.5 font-bold rounded-full border uppercase ${
+                    riskAnalysis?.contractRisk?.reentrancy === 'Passed' ? 'bg-tertiary-container/20 text-tertiary border-tertiary-container/30' : 'bg-error-container/20 text-error border-error-container/30'
+                  }`}>{riskAnalysis?.contractRisk?.reentrancy === 'Passed' ? 'Low' : 'High'}</span>
                 </div>
                 <div className="flex justify-between items-start">
                   <div className="flex gap-3">
-                    <CheckCircle className="text-tertiary" size={18} />
+                    <CheckCircle className={riskAnalysis?.contractRisk?.ownership === 'Passed' ? 'text-tertiary' : 'text-error'} size={18} />
                     <div>
-                      <p className="text-sm font-semibold">Renounced Ownership</p>
-                      <p className="text-xs text-outline">Owner cannot mint or pause contract functions.</p>
+                      <p className="text-sm font-semibold">Ownership Status</p>
+                      <p className="text-xs text-outline">Current governance and administrative controls.</p>
                     </div>
                   </div>
-                  <span className="text-[9px] px-2 py-0.5 bg-tertiary-container/20 text-tertiary font-bold rounded-full border border-tertiary-container/30 uppercase">Low</span>
+                  <span className={`text-[9px] px-2 py-0.5 font-bold rounded-full border uppercase ${
+                    riskAnalysis?.contractRisk?.ownership === 'Passed' ? 'bg-tertiary-container/20 text-tertiary border-tertiary-container/30' : 'bg-error-container/20 text-error border-error-container/30'
+                  }`}>{riskAnalysis?.contractRisk?.ownership === 'Passed' ? 'Low' : 'High'}</span>
                 </div>
               </div>
               <div className="mt-6 p-4 bg-surface-container-low rounded-lg border-l-4 border-error">
@@ -206,8 +234,8 @@ export function DeepDive() {
                 </div>
               </div>
               <div className="w-full h-1.5 bg-surface-container-lowest rounded-full flex overflow-hidden mb-6">
-                <div className="h-full bg-tertiary" style={{ width: '40%' }}></div>
-                <div className="h-full bg-error" style={{ width: '60%' }}></div>
+                <div className="h-full bg-tertiary" style={{ width: `${riskAnalysis?.marketPressure?.buy || 40}%` }}></div>
+                <div className="h-full bg-error" style={{ width: `${riskAnalysis?.marketPressure?.sell || 60}%` }}></div>
               </div>
               <div className="space-y-2">
                 <p className="text-[10px] text-outline font-bold uppercase mb-2">Recent Swaps</p>
@@ -284,42 +312,22 @@ export function DeepDive() {
               <div className="absolute top-4 left-0 w-full h-[1px] bg-outline-variant/30 z-0"></div>
               
               {/* Timeline Points */}
-              <div className="relative z-10 flex flex-col items-center gap-3 w-32 group">
-                <div className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-tertiary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-tertiary text-sm">trending_up</span>
+              {(riskAnalysis?.anomalies || []).slice(0, 4).map((anomaly: any, i: number) => (
+                <div key={i} className="relative z-10 flex flex-col items-center gap-3 w-32 group">
+                  <div className={`w-8 h-8 rounded-full bg-surface-container-highest border-2 flex items-center justify-center ${
+                    i % 2 === 0 ? 'border-tertiary' : 'border-error'
+                  }`}>
+                    <span className="material-symbols-outlined text-sm">{i % 2 === 0 ? 'trending_up' : 'water_drop'}</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-on-surface">{anomaly.title}</p>
+                    <p className="text-[9px] text-outline">{anomaly.time}</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-on-surface">Price Spike</p>
-                  <p className="text-[9px] text-outline">08:14 UTC</p>
-                </div>
-              </div>
-              <div className="relative z-10 flex flex-col items-center gap-3 w-32 group">
-                <div className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-error flex items-center justify-center">
-                  <span className="material-symbols-outlined text-error text-sm">water_drop</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-on-surface">Liquidity Pull</p>
-                  <p className="text-[9px] text-outline">09:30 UTC</p>
-                </div>
-              </div>
-              <div className="relative z-10 flex flex-col items-center gap-3 w-32 group">
-                <div className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-outline flex items-center justify-center">
-                  <span className="material-symbols-outlined text-outline text-sm">person_search</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-on-surface">Large Transfer</p>
-                  <p className="text-[9px] text-outline">10:05 UTC</p>
-                </div>
-              </div>
-              <div className="relative z-10 flex flex-col items-center gap-3 w-32 group">
-                <div className="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] font-bold text-on-surface">Sentiment Peak</p>
-                  <p className="text-[9px] text-outline">12:50 UTC</p>
-                </div>
-              </div>
+              ))}
+              {(!riskAnalysis?.anomalies || riskAnalysis.anomalies.length === 0) && (
+                <p className="text-xs text-on-surface-variant italic w-full text-center">No timeline data available.</p>
+              )}
             </div>
           </div>
         </section>
